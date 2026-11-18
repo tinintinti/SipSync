@@ -3,7 +3,6 @@ package com.example.sipsync.screens
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -36,11 +35,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -75,7 +74,6 @@ import androidx.compose.ui.unit.sp
 private val DeepTeal = Color(0xFF073B3A)
 private val PrimaryTeal = Color(0xFF087F70)
 private val Cream = Color(0xFFF8F7F2)
-private val LightMint = Color(0xFFE7F4EF)
 private val MintBright = Color(0xFF5FE3C0)
 private val MintSoft = Color(0xFFCDEBE3)
 private val FieldBorder = Color(0xFFE2E7E5)
@@ -84,26 +82,23 @@ private val MutedText = Color(0xFF6B7C79)
 private val LightText = Color(0xFF9AA5A2)
 
 @Composable
-fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
+fun LoginScreen(
+    loginError: String? = null,
+    onLogin: (String, String) -> Unit = { _, _ -> }
+) {
     val context = LocalContext.current
 
-    // ---------- UI state (pre-filled like the design) ----------
-    var selectedRole by remember { mutableStateOf("Owner") }
-    var username by remember { mutableStateOf("owner") }
-    var password by remember { mutableStateOf("owner123") }
-    var passwordVisible by remember { mutableStateOf(false) }
-
-    // Tapping a prototype account selects it and fills in sample credentials
-    fun selectRole(role: String) {
-        selectedRole = role
-        if (role == "Owner") {
-            username = "owner"
-            password = "owner123"
-        } else {
-            username = "employee"
-            password = "staff123"
+    // Show wrong-password message from the database check
+    LaunchedEffect(loginError) {
+        if (loginError != null) {
+            Toast.makeText(context, loginError, Toast.LENGTH_SHORT).show()
         }
     }
+
+    // Fields start empty: no hard-coded credentials
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -141,8 +136,6 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                         onPasswordChange = { password = it },
                         passwordVisible = passwordVisible,
                         onTogglePassword = { passwordVisible = !passwordVisible },
-                        selectedRole = selectedRole,
-                        onRoleSelected = { selectRole(it) },
                         onLoginClick = {
                             if (username.isBlank() || password.isBlank()) {
                                 Toast.makeText(
@@ -151,7 +144,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                                     Toast.LENGTH_SHORT
                                 ).show()
                             } else {
-                                onLoginSuccess(selectedRole)
+                                onLogin(username.trim(), password)
                             }
                         }
                     )
@@ -186,8 +179,8 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
 
 // ---------- Header background: slanted teal shape + decorative rings ----------
 private fun Modifier.drawHeaderBackground(): Modifier = this.drawBehind {
-    val leftHeight = 358.dp.toPx()   // header height on the left edge
-    val rightHeight = 290.dp.toPx()  // header height on the right edge (higher = slant)
+    val leftHeight = 358.dp.toPx()
+    val rightHeight = 290.dp.toPx()
 
     val shape = Path().apply {
         moveTo(0f, 0f)
@@ -198,7 +191,6 @@ private fun Modifier.drawHeaderBackground(): Modifier = this.drawBehind {
     }
     drawPath(shape, DeepTeal)
 
-    // Rings are clipped so they stay inside the teal area
     clipPath(shape) {
         val stroke = Stroke(width = 1.dp.toPx())
         val ring = Color.White.copy(alpha = 0.09f)
@@ -232,7 +224,6 @@ private fun BrandingSection() {
     }
 }
 
-// White rounded square with the shared SipSync logo
 @Composable
 private fun AppLogo() {
     Box(
@@ -255,8 +246,6 @@ private fun LoginCard(
     onPasswordChange: (String) -> Unit,
     passwordVisible: Boolean,
     onTogglePassword: () -> Unit,
-    selectedRole: String,
-    onRoleSelected: (String) -> Unit,
     onLoginClick: () -> Unit
 ) {
     Card(
@@ -346,38 +335,6 @@ private fun LoginCard(
                     )
                 }
             }
-
-            Spacer(Modifier.height(20.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                HorizontalDivider(modifier = Modifier.weight(1f), color = FieldBorder)
-                Text(
-                    text = "Prototype accounts",
-                    color = LightText,
-                    fontSize = 10.sp,
-                    modifier = Modifier.padding(horizontal = 10.dp)
-                )
-                HorizontalDivider(modifier = Modifier.weight(1f), color = FieldBorder)
-            }
-
-            Spacer(Modifier.height(14.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                AccountCard(
-                    title = "Owner",
-                    subtitle = "Full access",
-                    selected = selectedRole == "Owner",
-                    onClick = { onRoleSelected("Owner") },
-                    modifier = Modifier.weight(1f)
-                )
-                AccountCard(
-                    title = "Employee",
-                    subtitle = "Daily operations",
-                    selected = selectedRole == "Employee",
-                    onClick = { onRoleSelected("Employee") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
         }
     }
 }
@@ -393,7 +350,6 @@ private fun FieldLabel(text: String) {
     )
 }
 
-// Custom compact input field (48dp tall, like the design)
 @Composable
 private fun InputField(
     value: String,
@@ -468,40 +424,4 @@ private fun InputField(
             }
         }
     )
-}
-
-@Composable
-private fun AccountCard(
-    title: String,
-    subtitle: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val shape = RoundedCornerShape(14.dp)
-    Column(
-        modifier = modifier
-            .clip(shape)
-            .background(if (selected) LightMint else FieldBackground)
-            .border(
-                width = if (selected) 1.5.dp else 1.dp,
-                color = if (selected) PrimaryTeal else FieldBorder,
-                shape = shape
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 11.dp)
-    ) {
-        Text(
-            text = title,
-            color = DeepTeal,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(Modifier.height(2.dp))
-        Text(
-            text = subtitle,
-            color = if (selected) PrimaryTeal else MutedText,
-            fontSize = 10.sp
-        )
-    }
 }

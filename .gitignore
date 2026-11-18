@@ -1,26 +1,9 @@
-﻿# Gradle
 .gradle/
+**/.gradle/
 build/
-app/build/
-
-# Local machine settings (each person has their own)
+**/build/
+.kotlin/
 local.properties
-
-# IDE files
-.idea/
-*.iml
-.vscode/
-
-# Android build output and crash logs
-*.apk
-*.aab
-captures/
-.externalNativeBuild/
-.cxx/
-hs_err_pid*.log
-
-# OS files
-.DS_Store
-Thumbs.db
-
-replay_pid*.log
+*.db
+*.db-wal
+*.db-shm

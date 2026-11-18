@@ -43,7 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun HomeScreen(beverages: List<Beverage>, isOwner: Boolean, onNavigate: (Int) -> Unit) {
+fun HomeScreen(beverages: List<Beverage>, isOwner: Boolean, userName: String, onNavigate: (Int) -> Unit) {
     val context = LocalContext.current
     val transactions = transactionsFor(isOwner)
     val lowStock = beverages.count { it.units in 1..it.minStock }
@@ -51,8 +51,8 @@ fun HomeScreen(beverages: List<Beverage>, isOwner: Boolean, onNavigate: (Int) ->
     val stockIn = transactions.filter { it.qty > 0 }.sumOf { it.qty }
     val stockOut = transactions.filter { it.qty < 0 }.sumOf { -it.qty }
 
-    val firstName = if (isOwner) "Mara" else "Nico"
-    val initials = if (isOwner) "MS" else "NR"
+    val firstName = userName.trim().split(" ").firstOrNull().orEmpty()
+    val initials = initialsOf(userName)
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
 

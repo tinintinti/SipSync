@@ -117,9 +117,11 @@ internal fun transactionsFor(isOwner: Boolean): List<Txn> =
 @Composable
 fun MainScreen(
     isOwner: Boolean,
-    onSwitchRole: () -> Unit,
+    userName: String,
+    onAddEmployee: (String, String, String, (Boolean) -> Unit) -> Unit,
     onLogout: () -> Unit
 ) {
+
     var tab by remember { mutableStateOf(0) }
     var showAdd by remember { mutableStateOf(false) }
     val beverages = remember { mutableStateListOf<Beverage>().apply { addAll(sampleBeverages) } }
@@ -154,7 +156,7 @@ fun MainScreen(
         Column(modifier = Modifier.fillMaxSize().background(SipCream)) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 when (tab) {
-                    0 -> HomeScreen(beverages = beverages, isOwner = isOwner, onNavigate = { tab = it })
+                    0 -> HomeScreen(beverages = beverages, isOwner = isOwner, userName = userName, onNavigate = { tab = it })
                     1 -> InventoryScreen(
                         beverages = beverages,
                         isOwner = isOwner,
@@ -164,7 +166,8 @@ fun MainScreen(
                     3 -> SyncScreen(isOwner = isOwner)
                     else -> ProfileScreen(
                         isOwner = isOwner,
-                        onSwitchRole = onSwitchRole,
+                        userName = userName,
+                        onAddEmployee = onAddEmployee,
                         onLogout = onLogout
                     )
                 }
@@ -433,6 +436,11 @@ internal fun PillChip(
         )
     }
 }
+
+internal fun initialsOf(name: String): String =
+    name.trim().split(" ").filter { it.isNotBlank() }
+        .take(2).joinToString("") { it.first().uppercase() }
+        .ifEmpty { "?" }
 
 @Composable
 internal fun TransactionRow(t: Txn) {
