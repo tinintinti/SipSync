@@ -7,3 +7,6 @@ local.properties
 *.db
 *.db-wal
 *.db-shm
+
+replay_pid*.log
+.vscode/
