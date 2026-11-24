@@ -1,6 +1,7 @@
 package com.example.sipsync.screens
 
 import android.app.Activity
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -38,10 +39,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -54,12 +53,15 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
+import com.example.sipsync.data.MAX_EMPLOYEES
+import com.example.sipsync.sync.SyncStatus
 
 // ---------- Shared colors ----------
 internal val SipDeepTeal = Color(0xFF073B3A)
@@ -78,7 +80,7 @@ internal val SipAmberBg = Color(0xFFFFF1DC)
 internal val SipBlue = Color(0xFF5B6BD6)
 internal val SipBlueBg = Color(0xFFE9ECFB)
 
-// ---------- Sample data (in memory only, no database) ----------
+// ---------- UI models (built from the database in UiMappers.kt) ----------
 data class Beverage(
     val id: Int,
     val name: String,
@@ -88,84 +90,139 @@ data class Beverage(
     val initials: String,
     val tint: Color,
     val bg: Color,
-    val minStock: Int = 10
+    val minStock: Int = 10,
+    val key: String = "" // database id (UUID)
 )
 
 data class Txn(val item: String, val person: String, val time: String, val qty: Int)
 
-val sampleBeverages = listOf(
-    Beverage(1, "PureSpring Water", "Bottled Water", 20.0, 48, "PW", SipBlue, SipBlueBg),
-    Beverage(2, "Cola Classic", "Soft Drinks", 35.0, 8, "CC", SipRed, SipRedBg),
-    Beverage(3, "Sunny Orange Juice", "Juice", 42.0, 0, "OJ", SipAmber, SipAmberBg),
-    Beverage(4, "Leaf Brew Tea", "Bottled Tea", 38.0, 24, "LT", SipTeal, SipMint),
-    Beverage(5, "Daily Kick Coffee", "Canned Coffee", 45.0, 11, "DK", SipBlue, SipBlueBg)
-)
-
-val sampleTransactions = listOf(
-    Txn("PureSpring Water", "Mara Santos · Owner", "Today, 9:42 AM", 24),
-    Txn("Cola Classic", "Nico Reyes · Employee", "Today, 8:15 AM", -6),
-    Txn("Leaf Brew Tea", "Nico Reyes · Employee", "Yesterday, 4:30 PM", 12),
-    Txn("Sunny Orange Juice", "Mara Santos · Owner", "Yesterday, 2:18 PM", -4),
-    Txn("Daily Kick Coffee", "Nico Reyes · Employee", "Jun 12, 11:06 AM", -3)
-)
-
-// Owner sees all records, Employee sees only their own
-internal fun transactionsFor(isOwner: Boolean): List<Txn> =
-    if (isOwner) sampleTransactions else sampleTransactions.filter { it.person.contains("Employee") }
+// An employee account, as shown on the Owner's Profile page
+data class EmployeeInfo(val id: String, val fullName: String, val username: String)
 
 // ---------- Main screen: content + bottom navigation ----------
 @Composable
 fun MainScreen(
     isOwner: Boolean,
-    onSwitchRole: () -> Unit,
-    onLogout: () -> Unit
+    userName: String,
+    beverages: List<Beverage>,
+    transactions: List<Txn>,
+    pendingCount: Int,
+    onRecordStock: (beverageKey: String, signedQuantity: Int) -> Unit,
+    onAddBeverage: (name: String, category: String, price: Double, minStock: Int, initialStock: Int) -> Unit,
+    onDeleteBeverage: (beverageKey: String) -> Unit,
+    onAddEmployee: (String, String, String, (Boolean) -> Unit) -> Unit,
+    deviceId: String,
+    onUpdateName: (String) -> Unit,
+    onChangePassword: (current: String, newPassword: String, onResult: (Boolean) -> Unit) -> Unit,
+    onLogout: () -> Unit,
+    employees: List<EmployeeInfo> = emptyList(), // existing employee accounts
+    onDeleteEmployee: (String) -> Unit = {},
+    // Wi-Fi Direct sync (defaults keep older calls compiling)
+    syncStatus: SyncStatus = SyncStatus.Idle,
+    onSyncStart: () -> Unit = {},
+    onSyncNow: () -> Unit = {},
+    onSyncStop: () -> Unit = {}
 ) {
     var tab by remember { mutableStateOf(0) }
     var showAdd by remember { mutableStateOf(false) }
-    val beverages = remember { mutableStateListOf<Beverage>().apply { addAll(sampleBeverages) } }
+    var showAddEmployee by remember { mutableStateOf(false) }
+    var stockForm by remember { mutableStateOf<Boolean?>(null) } // true = Stock In, false = Stock Out
 
-    // Home has a dark header (light status icons); other screens have white headers (dark icons)
+    // Every screen now has a light header, so status bar icons are dark
+    val context = LocalContext.current
+    val employeeCount = employees.size
     val view = LocalView.current
     SideEffect {
         val window = (view.context as Activity).window
-        WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = tab != 0 || showAdd
-    }
-    DisposableEffect(Unit) {
-        onDispose {
-            val window = (view.context as Activity).window
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
-        }
+        WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = true
     }
 
-    // Phone back button closes the Add Beverage screen
+    // Phone back button closes the forms
     BackHandler(enabled = showAdd) { showAdd = false }
+    BackHandler(enabled = stockForm != null) { stockForm = null }
+    BackHandler(enabled = showAddEmployee) { showAddEmployee = false }
 
-    if (showAdd && isOwner) {
+    val form = stockForm
+    if (form != null) {
+        StockFormScreen(
+            isStockIn = form,
+            beverages = beverages,
+            onBack = { stockForm = null },
+            onSave = { beverage, qty, _ ->
+                onRecordStock(beverage.key, if (form) qty else -qty)
+                stockForm = null
+            }
+        )
+    } else if (showAddEmployee && isOwner) {
+        AddEmployeeScreen(
+            onBack = { showAddEmployee = false },
+            onCreate = onAddEmployee
+        )
+    } else if (showAdd && isOwner) {
         AddBeverageScreen(
-            nextId = (beverages.maxOfOrNull { it.id } ?: 0) + 1,
+            nextId = beverages.size + 1,
             onCancel = { showAdd = false },
-            onSave = { newBeverage ->
-                beverages.add(newBeverage)
+            onSave = { b ->
+                onAddBeverage(b.name, b.category, b.price, b.minStock, b.units)
                 showAdd = false
                 tab = 1
-            }
+            },
+            // Lets custom categories created earlier show up again in the form
+            existingCategories = beverages.map { it.category }
         )
     } else {
         Column(modifier = Modifier.fillMaxSize().background(SipCream)) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 when (tab) {
-                    0 -> HomeScreen(beverages = beverages, isOwner = isOwner, onNavigate = { tab = it })
+                    0 -> HomeScreen(
+                        beverages = beverages,
+                        isOwner = isOwner,
+                        userName = userName,
+                        transactions = transactions,
+                        pendingCount = pendingCount,
+                        onNavigate = { tab = it },
+                        onStockIn = { stockForm = true },
+                        onStockOut = { stockForm = false }
+                    )
                     1 -> InventoryScreen(
                         beverages = beverages,
                         isOwner = isOwner,
-                        onAddClick = { showAdd = true }
+                        onAddClick = { showAdd = true },
+                        onDelete = { onDeleteBeverage(it.key) }
                     )
-                    2 -> HistoryScreen(isOwner = isOwner)
-                    3 -> SyncScreen(isOwner = isOwner)
+                    2 -> HistoryScreen(isOwner = isOwner, transactions = transactions)
+                    3 -> SyncScreen(
+                        isOwner = isOwner,
+                        status = syncStatus,
+                        pendingCount = pendingCount,
+                        readyToSend = transactions.take(pendingCount),
+                        onStart = onSyncStart,
+                        onSyncNow = onSyncNow,
+                        onStop = onSyncStop
+                    )
                     else -> ProfileScreen(
                         isOwner = isOwner,
-                        onSwitchRole = onSwitchRole,
-                        onLogout = onLogout
+                        userName = userName,
+                        deviceId = deviceId,
+                        beverageCount = beverages.size,
+                        transactionCount = transactions.size,
+                        pendingCount = pendingCount,
+                        onAddEmployeeClick = {
+                            if (employeeCount >= MAX_EMPLOYEES) {
+                                Toast.makeText(
+                                    context,
+                                    "Only one employee account is allowed",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                showAddEmployee = true
+                            }
+                        },
+                        onUpdateName = onUpdateName,
+                        onChangePassword = onChangePassword,
+                        onLogout = onLogout,
+                        employees = employees,
+                        onDeleteEmployee = onDeleteEmployee
                     )
                 }
             }
@@ -196,21 +253,28 @@ private fun BottomNavBar(selected: Int, onSelect: (Int) -> Unit) {
                     modifier = Modifier
                         .weight(1f)
                         .clickable { onSelect(index) }
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = 2.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = label,
-                        tint = if (active) SipTeal else SipLight,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(if (active) Color(0xFFFFE0E8) else Color.Transparent)
+                            .padding(horizontal = 20.dp, vertical = 5.dp)
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = label,
+                            tint = if (active) AuthRaspberry else AuthPlum.copy(alpha = 0.7f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                     Spacer(Modifier.height(2.dp))
                     Text(
                         text = label,
                         fontSize = 10.sp,
                         fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
-                        color = if (active) SipTeal else SipLight
+                        color = if (active) AuthRaspberry else AuthMuted
                     )
                 }
             }
@@ -433,6 +497,11 @@ internal fun PillChip(
         )
     }
 }
+
+internal fun initialsOf(name: String): String =
+    name.trim().split(" ").filter { it.isNotBlank() }
+        .take(2).joinToString("") { it.first().uppercase() }
+        .ifEmpty { "?" }
 
 @Composable
 internal fun TransactionRow(t: Txn) {
