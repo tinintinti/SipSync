@@ -36,6 +36,17 @@ private val InGreenBg = Color(0xFFDDF2E8)
 private val OutRed = Color(0xFFD64545)
 private val OutRedBg = Color(0xFFFFE0E6)
 
+/** Returns a greeting that matches the device's current local time. */
+private fun greetingForNow(): String {
+    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    return when (hour) {
+        in 5..11 -> "Good morning,"
+        in 12..17 -> "Good afternoon,"
+        in 18..21 -> "Good evening,"
+        else -> "Good night,"
+    }
+}
+
 @Composable
 fun HomeScreen(
     beverages: List<Beverage>,
@@ -67,7 +78,6 @@ fun HomeScreen(
     ) {
         Spacer(Modifier.height(16.dp))
 
-        // ===== Greeting row =====
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
@@ -80,7 +90,7 @@ fun HomeScreen(
             }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text("Good morning,", color = AuthMuted, fontSize = 13.sp)
+                Text(greetingForNow(), color = AuthMuted, fontSize = 13.sp)
                 Text(firstName, color = AuthPlum, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
             }
             AuthLogo(logoSize = 46.dp)
@@ -113,7 +123,6 @@ fun HomeScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        // ===== Stats card =====
         Column(
             modifier = Modifier
                 .fillMaxWidth()
