@@ -52,17 +52,25 @@ Through Wi-Fi Direct and TCP socket communication, two authorized Android device
 
 ## 📱 Application Screenshots
 
-The application includes the following main screens:
+The following screenshots show the main SipSync application screens.
 
-| Screen | Description |
-|---|---|
-| Login Screen | User authentication |
-| Home Screen | Inventory overview and quick actions |
-| Inventory Screen | Beverage product management |
-| Transaction History | Recorded stock movements |
-| Device Sync | Connect and synchronize two Android devices |
-| Profile Screen | User account information and settings |
+### Login Screen
+![SipSync Login Screen](screenshots/login.png)
 
+### Home Dashboard
+![SipSync Home Dashboard](screenshots/home.png)
+
+### Beverage Inventory
+![SipSync Beverage Inventory](screenshots/inventory.png)
+
+### Transaction History
+![SipSync Transaction History](screenshots/transaction-history.png)
+
+### Device Synchronization
+![SipSync Device Sync](screenshots/device-sync.png)
+
+### User Profile
+![SipSync Profile](screenshots/profile.png)
 
 ## ⚙️ System Requirements
 
