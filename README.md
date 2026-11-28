@@ -63,7 +63,6 @@ The application includes the following main screens:
 | Device Sync | Connect and synchronize two Android devices |
 | Profile Screen | User account information and settings |
 
-> Screenshots of the application can be added here.
 
 ## ⚙️ System Requirements
 
